@@ -65,12 +65,18 @@ contract BasicToken is ERC20Basic {
 
     mapping(address => uint256) balances;
 
+    // Fix for the ERC20 short address attack
+    modifier onlyPayloadSize(uint size) {
+        require(msg.data.length >= size + 4);
+        _;
+    }
+
     /**
     * @dev transfer token for a specified address
     * @param _to The address to transfer to.
     * @param _value The amount to be transferred.
     */
-    function transfer(address _to, uint256 _value) returns (bool) {
+    function transfer(address _to, uint256 _value) onlyPayloadSize(2 * 32) returns (bool) {
         balances[msg.sender] = balances[msg.sender].sub(_value);
         balances[_to] = balances[_to].add(_value);
         Transfer(msg.sender, _to, _value);
@@ -105,7 +111,7 @@ contract StandardToken is ERC20, BasicToken {
      * @param _to address The address which you want to transfer to
      * @param _value uint256 the amout of tokens to be transfered
      */
-    function transferFrom(address _from, address _to, uint256 _value) returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3 * 32) returns (bool) {
         var _allowance = allowed[_from][msg.sender];
 
         // Check is not needed because sub(_allowance, _value) will already throw if this condition is not met
@@ -123,7 +129,7 @@ contract StandardToken is ERC20, BasicToken {
      * @param _spender The address which will spend the funds.
      * @param _value The amount of tokens to be spent.
      */
-    function approve(address _spender, uint256 _value) returns (bool) {
+    function approve(address _spender, uint256 _value) onlyPayloadSize(2 * 32) returns (bool) {
 
         // To change the approve amount you first have to reduce the addresses`
         //  allowance to zero by calling `approve(_spender, 0)` if it is not
@@ -142,46 +148,36 @@ contract StandardToken is ERC20, BasicToken {
      * @param _spender address The address which will spend the funds.
      * @return A uint256 specifing the amount of tokens still available for the spender.
      */
-    function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
+    function allowance(address _owner, address _spender) onlyPayloadSize(2 * 32) constant returns (uint256 remaining) {
         return allowed[_owner][_spender];
     }
 
 }
 
-/**
- * @title Ownable
- * @dev The Ownable contract has an owner address, and provides basic authorization control
- * functions, this simplifies the implementation of "user permissions".
- */
-contract Ownable {
+contract owned {
 
     address public owner;
+    address public newOwner;
 
-    /**
-     * @dev The Ownable constructor sets the original `owner` of the contract to the sender
-     * account.
-     */
-    function Ownable() {
+    function owned() payable {
         owner = msg.sender;
     }
 
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        require(msg.sender == owner);
+    modifier onlyOwner {
+        require(owner == msg.sender);
         _;
     }
 
-    /**
-     * @dev Allows the current owner to transfer control of the contract to a newOwner.
-     * @param newOwner The address to transfer ownership to.
-     */
-    function transferOwnership(address newOwner) onlyOwner {
-        require(newOwner != address(0));
-        owner = newOwner;
+    function changeOwner(address _owner) onlyOwner public {
+        require(_owner != 0);
+        newOwner = _owner;
     }
 
+    function confirmOwner() public {
+        require(newOwner == msg.sender);
+        owner = newOwner;
+        delete newOwner;
+    }
 }
 
 /**
@@ -190,8 +186,7 @@ contract Ownable {
  * @dev Issue: * https://github.com/OpenZeppelin/zeppelin-solidity/issues/120
  * Based on code by TokenMarketNet: https://github.com/TokenMarketNet/ico/blob/master/contracts/MintableToken.sol
  */
-
-contract MintableToken is StandardToken, Ownable {
+contract MintableToken is StandardToken, owned {
 
     event Mint(address indexed to, uint256 amount);
 
@@ -210,7 +205,7 @@ contract MintableToken is StandardToken, Ownable {
      * @param _amount The amount of tokens to mint.
      * @return A boolean that indicates if the operation was successful.
      */
-    function mint(address _to, uint256 _amount) onlyOwner canMint returns (bool) {
+    function mint(address _to, uint256 _amount) onlyOwner canMint onlyPayloadSize(2 * 32) returns (bool) {
         totalSupply = totalSupply.add(_amount);
         balances[_to] = balances[_to].add(_amount);
         Mint(_to, _amount);
@@ -238,17 +233,18 @@ contract SimpleTokenCoin is MintableToken {
     uint32 public constant decimals = 8;
 }
 
-contract CrowdsalePhase is Ownable {
+contract CrowdsalePhase is owned {
 
     using SafeMath for uint256;
 
-    uint number;
-    uint256 amount;
-    uint start;
-    uint period;
-    uint discount;
-    uint rate;
-    bool refundable;
+    uint public number;
+    uint256 public leftAmount;
+    uint256 public givenTokens = 0;
+    uint public start;
+    uint public period;
+    uint public discount;
+    uint public rate;
+    bool public refundable;
     uint end = 0;
 
     modifier saleIsStared() {
@@ -256,31 +252,23 @@ contract CrowdsalePhase is Ownable {
         _;
     }
 
-    function getNumber() public returns (uint) {
-        return number;
-    }
-
-    function getEndTime() public returns (uint){
+    function getEndTime() public constant returns (uint){
         if (end != 0) {
             return end;
         }
-        return start + period * 1 days;
+        uint endTime = start + period;
+        if (endTime > now) {
+            end = endTime;
+        }
+        return endTime;
     }
 
-    function isSuccess() public returns (bool) {
-        return amount == 0;
+    function timeIsOver() public constant returns (bool) {
+        return now < start || now > start + period;
     }
 
-    function timeIsOver() public returns (bool) {
-        return now < start || now > start + period * 1 days;
-    }
-
-    function saleIsOver() public returns (bool) {
-        return isSuccess() || timeIsOver();
-    }
-
-    function isRefundable() public returns (bool) {
-        return refundable;
+    function saleIsOver() public constant returns (bool) {
+        return leftAmount == 0 || timeIsOver();
     }
 
     function CrowdsalePhase(
@@ -290,10 +278,10 @@ contract CrowdsalePhase is Ownable {
     uint phasePeriodInDays,
     uint phaseDiscountInPercent,
     uint phaseRate,
-    bool phaseRefundable)
+    bool phaseRefundable) public
     {
         number = phaseNumber;
-        amount = phaseAmount;
+        leftAmount = phaseAmount;
         start = phaseStart;
         period = phasePeriodInDays;
         discount = phaseDiscountInPercent;
@@ -301,24 +289,22 @@ contract CrowdsalePhase is Ownable {
         refundable = phaseRefundable;
     }
 
-    uint256 value;
-    uint256 tokens;
-
     function countTokens(uint256 orderingValue)
     public saleIsStared onlyOwner
-    returns (uint256 leftAmount, uint256 givenTokens, bool phaseOver)
+    returns (uint256 overAmount, uint256 givenTokens, bool phaseOver)
     {
         if (saleIsOver()) {
             return (orderingValue, 0, true);
         }
-        value = orderingValue;
-        if (orderingValue > amount) {
-            value = amount;
+        uint256 value = orderingValue;
+        if (orderingValue >= leftAmount) {
+            value = leftAmount;
             end = now;
         }
-        tokens = value.mul(rate).mul(100).div((100 - discount)).div(1 ether);
-        amount = amount.sub(value);
-        return (orderingValue - value, tokens, amount == 0);
+        uint256 tokens = value.mul(rate).mul(100).div((100 - discount)).div(1 ether);
+        givenTokens = givenTokens.add(tokens);
+        leftAmount = leftAmount.sub(value);
+        return (orderingValue - value, tokens, leftAmount == 0);
     }
 }
 
@@ -326,7 +312,7 @@ contract CrowdsalePhase is Ownable {
  * @title Crowdsale
  * @dev Implementation for 4 phases crowdsale.
 */
-contract Crowdsale is Ownable {
+contract Crowdsale is owned {
 
     using SafeMath for uint256;
 
@@ -348,16 +334,17 @@ contract Crowdsale is Ownable {
 
     CrowdsalePhase phase;
 
-    function Crowdsale() {
+    function Crowdsale() public {
         uint crowdsaleStart = now + 1;
         require(now < crowdsaleStart);
         startTime = crowdsaleStart;
-        phase = new CrowdsalePhase(1, 50 * 1 ether, crowdsaleStart, 2, 30, rate, true);
+        // Create the first phase with number 1, 50 ether amount, start time, 2 days, 30 percent discount, constant rate, refundable
+        phase = new CrowdsalePhase(1, 50 ether, crowdsaleStart, 2 days, 30, rate, true);
         state = CrowdsaleState.Opened;
     }
 
     function isFailed() returns (bool) {
-        if (phase.isRefundable() && !phase.isSuccess() && phase.timeIsOver()) {
+        if (phase.refundable() && (phase.leftAmount() != 0) && phase.timeIsOver()) {
             endTime = now;
             state = CrowdsaleState.Failed;
             return true;
@@ -366,7 +353,7 @@ contract Crowdsale is Ownable {
     }
 
     function isClosed() returns (bool) {
-        if (phase.getNumber() == 4 && phase.saleIsOver()) {
+        if (phase.number() == 4 && phase.saleIsOver()) {
             endTime = now;
             state = CrowdsaleState.Closed;
             return true;
@@ -375,46 +362,42 @@ contract Crowdsale is Ownable {
     }
 
     function nextActivePhase() {
-        uint phaseNumber = phase.getNumber();
         uint phaseEnd = phase.getEndTime();
-        if (phaseNumber == 1 && !isFailed()) {
-            phase = new CrowdsalePhase(2, 50 * 1 ether, phaseEnd, 2, 30, rate, false);
-        } else if (phaseNumber == 2) {
-            phase = new CrowdsalePhase(3, 50 * 1 ether, phaseEnd, 2, 20, rate, false);
-        } else if (phaseNumber == 3) {
-            phase = new CrowdsalePhase(4, 50 * 1 ether, phaseEnd, 2, 10, rate, false);
-        } else if (phaseNumber == 4) {
+        if (phase.number() == 1 && !isFailed()) {
+            // Create second phase with number 2, 50 ether amount, start time (end previous phase), 2 days, 30 percent discount, constant rate, not refundable
+            phase = new CrowdsalePhase(2, 50 ether, phaseEnd, 2 days, 30, rate, false);
+        } else if (phase.number() == 2) {
+            // Create second phase with number 3, 50 ether amount, start time (end previous phase), 2 days, 20 percent discount, constant rate, not refundable
+            phase = new CrowdsalePhase(3, 50 ether, phaseEnd, 2 days, 20, rate, false);
+        } else if (phase.number() == 3) {
+            // Create second phase with number 4, 50 ether amount, start time (end previous phase), 2 days, 10 percent discount, constant rate, not refundable
+            phase = new CrowdsalePhase(4, 50 ether, phaseEnd, 2 days, 10, rate, false);
+        } else if (phase.number() == 4) {
             endTime = phaseEnd;
             state = CrowdsaleState.Closed;
         }
     }
-    function createTokens() payable {
+
+    function() external payable {
         uint256 tokens = 0;
         uint256 leftValue = msg.value;
         while (state == CrowdsaleState.Opened && leftValue > 0){
-            var (leftAmount, givenTokens, phaseOver) = phase.countTokens(leftValue);
+            var (overAmount, givenTokens, phaseOver) = phase.countTokens(leftValue);
             tokens = tokens.add(givenTokens);
+            leftValue = overAmount;
             if (phaseOver) {
                 nextActivePhase();
             }
-            leftValue = leftAmount;
         }
         uint256 amount = msg.value.sub(leftValue);
-        if (amount == 0) {
-            return;
-        }
+        require(amount > 0);
         amounts[msg.sender] = amount.add(amounts[msg.sender]);
         if (leftValue != 0) {
-            msg.sender.transfer(leftValue);
+            require(msg.sender.call.gas(3000000).value(leftValue)());
         }
         totalAmount = totalAmount.add(amount);
         totalSupply = totalSupply.add(tokens);
         token.mint(msg.sender, tokens);
-    }
-
-    function() external payable {
-        require(msg.sender != 0);
-        createTokens();
     }
 
     function refund() external {
@@ -422,13 +405,13 @@ contract Crowdsale is Ownable {
             uint256 amount = amounts[msg.sender];
             require(amount > 0);
             token.transfer(this, token.balanceOf(msg.sender));
-            msg.sender.transfer(amount);
+            require(msg.sender.call.gas(3000000).value(amount)());
         }
     }
 
     function withdraw() external onlyOwner {
         if (isClosed()) {
-            msg.sender.transfer(totalAmount);
+            require(msg.sender.call.gas(3000000).value(totalAmount)());
         }
     }
 }
