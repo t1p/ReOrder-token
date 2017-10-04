@@ -1,5 +1,6 @@
 pragma solidity ^0.4.13;
 
+
 /**
  * @title ERC20Basic
  * @dev Simpler version of ERC20 interface
@@ -7,21 +8,29 @@ pragma solidity ^0.4.13;
  */
 contract ERC20Basic {
     uint256 public totalSupply;
-    function balanceOf(address who) constant returns (uint256);
-    function transfer(address to, uint256 value) returns (bool);
+
+    function balanceOf(address who) constant public returns (uint256);
+
+    function transfer(address to, uint256 value) public returns (bool);
+
     event Transfer(address indexed from, address indexed to, uint256 value);
 }
+
 
 /**
  * @title ERC20 interface
  * @dev see https://github.com/ethereum/EIPs/issues/20
  */
 contract ERC20 is ERC20Basic {
-    function allowance(address owner, address spender) constant returns (uint256);
-    function transferFrom(address from, address to, uint256 value) returns (bool);
-    function approve(address spender, uint256 value) returns (bool);
+    function allowance(address owner, address spender) constant public returns (uint256);
+
+    function transferFrom(address from, address to, uint256 value) public returns (bool);
+
+    function approve(address spender, uint256 value) public returns (bool);
+
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
+
 
 /**
  * @title SafeMath
@@ -55,6 +64,7 @@ library SafeMath {
 
 }
 
+
 /**
  * @title Basic token
  * @dev Basic version of StandardToken, with no allowances.
@@ -63,7 +73,7 @@ contract BasicToken is ERC20Basic {
 
     using SafeMath for uint256;
 
-    mapping(address => uint256) balances;
+    mapping (address => uint256) balances;
 
     // Fix for the ERC20 short address attack
     modifier onlyPayloadSize(uint size) {
@@ -76,7 +86,7 @@ contract BasicToken is ERC20Basic {
     * @param _to The address to transfer to.
     * @param _value The amount to be transferred.
     */
-    function transfer(address _to, uint256 _value) onlyPayloadSize(2 * 32) returns (bool) {
+    function transfer(address _to, uint256 _value) onlyPayloadSize(2 * 32) public returns (bool) {
         balances[msg.sender] = balances[msg.sender].sub(_value);
         balances[_to] = balances[_to].add(_value);
         Transfer(msg.sender, _to, _value);
@@ -88,11 +98,12 @@ contract BasicToken is ERC20Basic {
     * @param _owner The address to query the the balance of.
     * @return An uint256 representing the amount owned by the passed address.
     */
-    function balanceOf(address _owner) constant returns (uint256 balance) {
+    function balanceOf(address _owner) constant public returns (uint256 balance) {
         return balances[_owner];
     }
 
 }
+
 
 /**
  * @title Standard ERC20 token
@@ -111,7 +122,7 @@ contract StandardToken is ERC20, BasicToken {
      * @param _to address The address which you want to transfer to
      * @param _value uint256 the amout of tokens to be transfered
      */
-    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3 * 32) returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _value) onlyPayloadSize(3 * 32) public returns (bool) {
         var _allowance = allowed[_from][msg.sender];
 
         // Check is not needed because sub(_allowance, _value) will already throw if this condition is not met
@@ -129,7 +140,7 @@ contract StandardToken is ERC20, BasicToken {
      * @param _spender The address which will spend the funds.
      * @param _value The amount of tokens to be spent.
      */
-    function approve(address _spender, uint256 _value) onlyPayloadSize(2 * 32) returns (bool) {
+    function approve(address _spender, uint256 _value) onlyPayloadSize(2 * 32) public returns (bool) {
 
         // To change the approve amount you first have to reduce the addresses`
         //  allowance to zero by calling `approve(_spender, 0)` if it is not
@@ -148,18 +159,20 @@ contract StandardToken is ERC20, BasicToken {
      * @param _spender address The address which will spend the funds.
      * @return A uint256 specifing the amount of tokens still available for the spender.
      */
-    function allowance(address _owner, address _spender) onlyPayloadSize(2 * 32) constant returns (uint256 remaining) {
+    function allowance(address _owner, address _spender) onlyPayloadSize(2 * 32) constant public returns (uint256 remaining) {
         return allowed[_owner][_spender];
     }
 
 }
 
+
 contract owned {
 
     address public owner;
+
     address public newOwner;
 
-    function owned() payable {
+    function owned() public payable {
         owner = msg.sender;
     }
 
@@ -179,6 +192,7 @@ contract owned {
         delete newOwner;
     }
 }
+
 
 /**
  * @title Mintable token
@@ -205,7 +219,7 @@ contract MintableToken is StandardToken, owned {
      * @param _amount The amount of tokens to mint.
      * @return A boolean that indicates if the operation was successful.
      */
-    function mint(address _to, uint256 _amount) onlyOwner canMint onlyPayloadSize(2 * 32) returns (bool) {
+    function mint(address _to, uint256 _amount) onlyOwner canMint onlyPayloadSize(2 * 32) public returns (bool) {
         totalSupply = totalSupply.add(_amount);
         balances[_to] = balances[_to].add(_amount);
         Mint(_to, _amount);
@@ -216,13 +230,14 @@ contract MintableToken is StandardToken, owned {
      * @dev Function to stop minting new tokens.
      * @return True if the operation was successful.
      */
-    function finishMinting() onlyOwner returns (bool) {
+    function finishMinting() onlyOwner public returns (bool) {
         mintingFinished = true;
         MintFinished();
         return true;
     }
 
 }
+
 
 contract SimpleTokenCoin is MintableToken {
 
@@ -233,18 +248,27 @@ contract SimpleTokenCoin is MintableToken {
     uint32 public constant decimals = 8;
 }
 
+
 contract CrowdsalePhase is owned {
 
     using SafeMath for uint256;
 
     uint public number;
+
     uint256 public leftAmount;
+
     uint256 public givenTokens = 0;
+
     uint public start;
+
     uint public period;
+
     uint public discount;
+
     uint public rate;
+
     bool public refundable;
+
     uint end = 0;
 
     modifier saleIsStared() {
@@ -308,6 +332,7 @@ contract CrowdsalePhase is owned {
     }
 }
 
+
 /**
  * @title Crowdsale
  * @dev Implementation for 4 phases crowdsale.
@@ -319,14 +344,19 @@ contract Crowdsale is owned {
     /**
      * @dev type of crowdsale state.
     */
-    enum CrowdsaleState {Opened, Closed, Failed}
+    enum CrowdsaleState {OPENED, STOPPED, CLOSED, FAILED}
 
-    uint256 totalSupply;
-    uint startTime;
-    uint endTime;
-    CrowdsaleState state;
+    uint256 public totalSupply;
+
+    uint public startTime;
+
+    uint public endTime;
+
+    CrowdsaleState public state;
+
     mapping (address => uint256) amounts;
-    uint256 totalAmount;
+
+    uint256 public totalAmount;
 
     uint256 constant rate = 300 * 100000000;
 
@@ -334,28 +364,49 @@ contract Crowdsale is owned {
 
     CrowdsalePhase phase;
 
+    modifier nonStopped() {
+        require(state != CrowdsaleState.STOPPED);
+        return _;
+    }
+
+    modifier opened() {
+        require(state == CrowdsaleState.OPENED);
+        return _;
+    }
+
+    modifier stopped() {
+        require(state == CrowdsaleState.STOPPED);
+    }
+
     function Crowdsale() public {
         uint crowdsaleStart = now + 1;
         require(now < crowdsaleStart);
         startTime = crowdsaleStart;
         // Create the first phase with number 1, 50 ether amount, start time, 2 days, 30 percent discount, constant rate, refundable
         phase = new CrowdsalePhase(1, 50 ether, crowdsaleStart, 2 days, 30, rate, true);
-        state = CrowdsaleState.Opened;
+        state = CrowdsaleState.OPENED;
     }
 
-    function isFailed() returns (bool) {
+    function isFailed() public returns (bool) {
+        if (state == CrowdsaleState.FAILED) {
+            return true;
+        }
         if (phase.refundable() && (phase.leftAmount() != 0) && phase.timeIsOver()) {
-            endTime = now;
-            state = CrowdsaleState.Failed;
+            endTime = phase.getEndTime();
+            state = CrowdsaleState.FAILED;
             return true;
         }
         return false;
     }
 
-    function isClosed() returns (bool) {
+    function isClosed() public returns (bool) {
+        if (state == CrowdsaleState.CLOSED) {
+            return true;
+        }
+        moveToActivePhase();
         if (phase.number() == 4 && phase.saleIsOver()) {
-            endTime = now;
-            state = CrowdsaleState.Closed;
+            endTime = phase.getEndTime();
+            state = CrowdsaleState.CLOSED;
             return true;
         }
         return false;
@@ -366,22 +417,25 @@ contract Crowdsale is owned {
         if (phase.number() == 1 && !isFailed()) {
             // Create second phase with number 2, 50 ether amount, start time (end previous phase), 2 days, 30 percent discount, constant rate, not refundable
             phase = new CrowdsalePhase(2, 50 ether, phaseEnd, 2 days, 30, rate, false);
-        } else if (phase.number() == 2) {
+        }
+        else if (phase.number() == 2) {
             // Create second phase with number 3, 50 ether amount, start time (end previous phase), 2 days, 20 percent discount, constant rate, not refundable
             phase = new CrowdsalePhase(3, 50 ether, phaseEnd, 2 days, 20, rate, false);
-        } else if (phase.number() == 3) {
+        }
+        else if (phase.number() == 3) {
             // Create second phase with number 4, 50 ether amount, start time (end previous phase), 2 days, 10 percent discount, constant rate, not refundable
             phase = new CrowdsalePhase(4, 50 ether, phaseEnd, 2 days, 10, rate, false);
-        } else if (phase.number() == 4) {
+        }
+        else if (phase.number() == 4) {
             endTime = phaseEnd;
-            state = CrowdsaleState.Closed;
+            state = CrowdsaleState.CLOSED;
         }
     }
 
-    function() external payable {
+    function() external nonStopped payable {
         uint256 tokens = 0;
         uint256 leftValue = msg.value;
-        while (state == CrowdsaleState.Opened && leftValue > 0){
+        while (state == CrowdsaleState.OPENED && leftValue > 0) {
             var (overAmount, givenTokens, phaseOver) = phase.countTokens(leftValue);
             tokens = tokens.add(givenTokens);
             leftValue = overAmount;
@@ -390,7 +444,6 @@ contract Crowdsale is owned {
             }
         }
         uint256 amount = msg.value.sub(leftValue);
-        require(amount > 0);
         amounts[msg.sender] = amount.add(amounts[msg.sender]);
         if (leftValue != 0) {
             require(msg.sender.call.gas(3000000).value(leftValue)());
@@ -400,18 +453,28 @@ contract Crowdsale is owned {
         token.mint(msg.sender, tokens);
     }
 
+    function migrateToken(address newContract) external onlyOwner {
+        token.changeOwner(newContract);
+    }
+
+    function stopCrowdsale() external opened onlyOwner {
+        state = CrowdsaleState.STOPPED;
+    }
+
+    function launchCrowdsale() external stopped onlyOwner {
+        state = CrowdsaleState.OPENED;
+    }
+
     function refund() external {
-        if (isFailed()) {
-            uint256 amount = amounts[msg.sender];
-            require(amount > 0);
-            token.transfer(this, token.balanceOf(msg.sender));
-            require(msg.sender.call.gas(3000000).value(amount)());
-        }
+        require(isFailed());
+        uint256 amount = amounts[msg.sender];
+        require(amount > 0);
+        token.transfer(this, token.balanceOf(msg.sender));
+        require(msg.sender.call.gas(3000000).value(amount)());
     }
 
     function withdraw() external onlyOwner {
-        if (isClosed()) {
-            require(msg.sender.call.gas(3000000).value(totalAmount)());
-        }
+        require(isClosed());
+        require(msg.sender.call.gas(3000000).value(totalAmount)());
     }
 }
