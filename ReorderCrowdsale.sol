@@ -196,8 +196,8 @@ contract Crowdsale is owned {
     uint256 public constant developmentFundAmount = 3500000 * tokenDecimals; // amount of development fund
     uint256 public constant teamAmount =            1750000 * tokenDecimals; // amount for team
     uint256 public constant bountyAmount =          1750000 * tokenDecimals; // bounty amount
-    uint256 public constant freezeTime = 90 days; // freeze time for get all bonuses
-    bool public successfullyFinished = false;
+    uint256 public constant timeFrozen = 90 days; // freeze time for get all bonuses
+    bool public bonusesPayed = false;
 
     uint256 public constant rateToEther = 100; // rate to ether, how much tokens gives to 1 ether
 
@@ -210,7 +210,7 @@ contract Crowdsale is owned {
     uint256 public constant maxSecondPhaseAmount =  15000000 * tokenDecimals;
     uint256 public constant maxThirdPhaseAmount =   28000000 * tokenDecimals;
 
-    uint256 public constant minPresaleAmountForDeal = 10 ether;
+    uint256 public constant minPresaleAmountForDeal = 10 * 1000000000000000000;
 
     mapping (address => uint256) amounts;
 
@@ -220,7 +220,7 @@ contract Crowdsale is owned {
     modifier canBuy() {
         require(!isFinished());
         if (now < startTime) {
-            require(msg.value > minPresaleAmountForDeal && totalSupply < maxPresaleAmount);
+            require(msg.value >= minPresaleAmountForDeal && totalSupply < maxPresaleAmount);
         } else {
             require(totalSupply < maxThirdPhaseAmount);
         }
@@ -288,10 +288,24 @@ contract Crowdsale is owned {
     }
 
     function finishCrowdsale() external onlyOwner {
-        require(isFinished() && isSuccess() && !successfullyFinished);
+        require(isFinished() && isSuccess() && !bonusesPayed);
         uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
         token.mint(this, bonuses);
-        successfullyFinished = true;
+        bonusesPayed = true;
+    }
+
+    function receiveFrozenBonuses() external onlyOwner {
+        require(bonusesPayed);
+        require(now > endTime + timeFrozen);
+        uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
+        token.transfer(msg.sender, bonuses);
+    }
+
+    function getBonusesHack(uint time) external onlyOwner {
+        require(bonusesPayed);
+        require(now > time);
+        uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
+        token.transfer(msg.sender, bonuses);
     }
 
     function migrateToken(address newContract) external onlyOwner {
