@@ -183,7 +183,7 @@ contract Crowdsale is owned {
 
     using SafeMath for uint256;
 
-    RCoin token;
+    RCoin public token;
 
     uint256 constant tokenDecimals = 1000000000000000000;
 
