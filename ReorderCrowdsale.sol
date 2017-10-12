@@ -1,4 +1,4 @@
-pragma solidity ^0.4.13;
+pragma solidity ^0.4.16;
 
 
 contract ERC20Basic {
@@ -196,7 +196,7 @@ contract Crowdsale is owned {
     uint256 public constant developmentFundAmount = 3500000 * tokenDecimals; // amount of development fund
     uint256 public constant teamAmount =            1750000 * tokenDecimals; // amount for team
     uint256 public constant bountyAmount =          1750000 * tokenDecimals; // bounty amount
-    uint256 public constant timeFrozen = 90 days; // freeze time for get all bonuses
+    uint256 public constant bonusesTimeFrozen = 90 days; // freeze time for get all bonuses
     bool public bonusesPayed = false;
 
     uint256 public constant rateToEther = 100; // rate to ether, how much tokens gives to 1 ether
@@ -292,26 +292,21 @@ contract Crowdsale is owned {
         uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
         token.mint(this, bonuses);
         bonusesPayed = true;
+        // after this action token will not be able to mint any more
+        token.finishMinting();
     }
 
     function receiveFrozenBonuses() external onlyOwner {
         require(bonusesPayed);
-        require(now > endTime + timeFrozen);
+        require(now > endTime + bonusesTimeFrozen);
         uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
         token.transfer(msg.sender, bonuses);
     }
 
-    function getBonusesHack(uint time) external onlyOwner {
-        require(bonusesPayed);
-        require(now > time);
-        uint256 bonuses = developmentFundAmount.add(teamAmount).add(bountyAmount);
-        token.transfer(msg.sender, bonuses);
-    }
-
-    function migrateToken(address newContract) external onlyOwner {
-        require(isFinished());
-        token.changeOwner(newContract);
-    }
+//    function migrateToken(address newContract) external onlyOwner {
+//        require(isFinished());
+//        token.changeOwner(newContract);
+//    }
 
     function refund() external canRefund {
         uint256 amount = amounts[msg.sender];
