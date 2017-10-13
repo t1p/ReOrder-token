@@ -183,7 +183,7 @@ contract Crowdsale is owned {
 
     using SafeMath for uint256;
 
-    TestingCoin token;
+    TestingCoin public token;
 
     uint256 public totalSupply = 0;
     uint256 public totalAmount = 0;
